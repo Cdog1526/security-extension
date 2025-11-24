@@ -40,6 +40,15 @@ export default defineConfig({
       }
     },
     {
+      name: 'copy-rules',
+      writeBundle() {
+        copyFileSync(
+          resolve(__dirname, 'src/rules.json'),
+          resolve(__dirname, 'dist/rules.json')
+        );
+      }
+    },
+    {
       name: 'debug-bundle',
       generateBundle(options, bundle) {
         console.log('Bundled files:');
