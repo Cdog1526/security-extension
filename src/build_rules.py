@@ -1,105 +1,297 @@
 import re
 import json
 import requests
+import glob
+import os
+
+THIS_FOLDER = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CUSTOM_RULES_PATH = os.path.join(THIS_FOLDER, 'config/custom_rules.txt')
 
 names = {
     "easylist": "https://easylist.to/easylist/easylist.txt",
     "fanboy_annoyance": "https://easylist.to/easylist/fanboy-annoyance.txt",
-    "easyprivacy": "https://easylist.to/easylist/easyprivacy.txt"
+    "easyprivacy": "https://easylist.to/easylist/easyprivacy.txt",
+    "custom_rules": None
 }
+
+RESOURCE_MAP = {
+    "script": "script",
+    "image": "image",
+    "stylesheet": "stylesheet",
+    "media": "media",
+    "font": "font",
+    "object": "object",
+    "xhr": "xmlhttprequest",
+    "xmlhttprequest": "xmlhttprequest",
+    "subdocument": "sub_frame",
+    "sub_frame": "sub_frame",
+    "other": "other"
+}
+
+# Cosmetic rule keywords (MV3 cannot use these)
+COSMETIC = ["##", "#@#", "#?#", ":-abp-", "##+js", "#$#"]
+
+
+# --------------------------------------------------------------------
+# UTILS
+# --------------------------------------------------------------------
+
+def is_ascii(s: str) -> bool:
+    """Check if a string contains only ASCII characters."""
+    try:
+        s.encode("ascii")
+        return True
+    except UnicodeEncodeError:
+        return False
+
+
+def strip_unicode(s: str) -> str:
+    """Remove non-ASCII characters from a string."""
+    return unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode("ascii")
+
+
 
 def download_lists():
     contents = {}
     for name, url in names.items():
+        if name == "custom_rules":
+            contents[name] = load_custom_rules()
+            continue
         print(f"Downloading {name}...")
         text = requests.get(url, timeout=20).text
         contents[name] = text
     return contents
 
-def parse_list(list, rid):
+def clear_existing_rule_files():
+    """Remove all existing rule files matching the pattern rules_*.json"""
+    for file in glob.glob(os.path.join(THIS_FOLDER, "src/rules_*.json")):
+        try:
+            os.remove(file)
+        except OSError as e:
+            print(f"Error deleting {file}: {e}")
+
+def save_rules_to_files(rules_list: list[list[dict[str, any]]], base_name: str = "rules"):
+    """Save rules to multiple files with max 30k rules each"""
+    clear_existing_rule_files()
+    
+    all_files = []
+    for i, rule_chunk in enumerate(rules_list, 1):
+        if not rule_chunk:
+            continue
+            
+        filename = os.path.join(THIS_FOLDER, f"src/{base_name}_{i}.json")
+        with open(filename, "w", encoding="utf-8") as f:
+            json.dump(rule_chunk, f, indent=2)
+        all_files.append(filename)
+        print(f"Saved {len(rule_chunk)} rules to {filename}")
+    
+    return all_files
+
+def update_manifest(num_rule_files: int):
+    manifest_path = os.path.join(THIS_FOLDER, "src/manifest.json")
+    try:
+        with open(manifest_path, "r", encoding="utf-8") as f:
+            manifest = json.load(f)
+            
+        # Update rule resources
+        rule_resources = []
+        for i in range(1, num_rule_files + 1):
+            rule_resources.append({
+                "id": f"ruleset_{i}",
+                "enabled": True,
+                "path": f"rules_{i}.json"
+            })
+            
+        if "declarative_net_request" not in manifest:
+            manifest["declarative_net_request"] = {}
+        manifest["declarative_net_request"]["rule_resources"] = rule_resources
+        
+        # Save updated manifest
+        with open(manifest_path, "w", encoding="utf-8") as f:
+            json.dump(manifest, f, indent=2)
+            
+        print(f"Updated manifest with {num_rule_files} rule sets")
+    except Exception as e:
+        print(f"Error updating manifest: {e}")
+
+def load_custom_rules(filename: str = CUSTOM_RULES_PATH) -> str:
+    try:
+        with open(filename, "r", encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError:
+        print(f"Warning: {filename} not found. Creating an empty file.")
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write("# Add your custom blocking rules here, one per line\n")
+        return ""
+
+# --------------------------------------------------------------------
+# PARSER
+# --------------------------------------------------------------------
+
+def parse_list(text: str, starting_id=1):
     rules = []
-    lists = list.split("\n")
+    meta_rules = []
+    rule_id = starting_id
+    CHUNK_SIZE = 30000
 
-    for line in lists:
-        line = line.strip()
+    for raw in text.splitlines():
 
-        if not line or line.startswith("!") or line.startswith("@@"):
+        line = raw.strip()
+
+        # ------------------------------------------------------------
+        # Skip comments, empty lines
+        # ------------------------------------------------------------
+        if not line or line.startswith("!"):
             continue
 
-        # Skip cosmetic rules (Chrome MV3 can't use them)
-        if "##" in line or "#@" in line or "#?#" in line:
+        # ------------------------------------------------------------
+        # Skip exception rules (@@ means allowlist)
+        # ------------------------------------------------------------
+        if line.startswith("@@"):
             continue
 
-        # Skip extended ABP cosmetic operators
-        if ":-abp-" in line:
+        # ------------------------------------------------------------
+        # Skip cosmetic & HTML filtering (MV3 does not support)
+        # ------------------------------------------------------------
+        if any(c in line for c in COSMETIC):
             continue
 
-        # 1. ||domain^ syntax
-        m = re.match(r"^\|\|(.+?)\^", line)
+        # ------------------------------------------------------------
+        # Extract resource type modifiers ($script, $image, $xhr)
+        # ------------------------------------------------------------
+        resource_types = []
+        domain_restrictions = None
+
+        if "$" in line:
+            parts = line.split("$", 1)
+            pattern = parts[0]
+            modifiers = parts[1]
+
+            for mod in modifiers.split(","):
+                mod = mod.strip()
+
+                if mod in RESOURCE_MAP:
+                    resource_types.append(RESOURCE_MAP[mod])
+
+                elif mod == "third-party":
+                    # MV3 does support "domainType": "thirdParty"
+                    domain_restrictions = {"domainType": "thirdParty"}
+
+                elif mod.startswith("domain="):
+                    # ABP domain=example.com|foo.com
+                    doms = mod.replace("domain=", "").split("|")
+                    domain_restrictions = {"domains": doms}
+
+        else:
+            pattern = line
+
+        # Default resource types (for non-domain rules)
+        if not resource_types:
+            resource_types = [
+                "script", "image", "xmlhttprequest",
+                "sub_frame", "other"
+            ]
+
+        # ------------------------------------------------------------
+        # Parse ||domain^ syntax
+        # ------------------------------------------------------------
+        url_filter = None
+
+        m = re.match(r"^\|\|(.+?)\^", pattern)
         if m:
-            domain = m.group(1)
-            if any(domain.endswith(tld) for tld in ('.com', '.net', '.org', '.io', '.co')):
-                rules.append({
-                    "id": rid,
-                    "priority": 1,
-                    "action": {"type": "block"},
-                    "condition": {
-                        "urlFilter": f"||{domain}^",
-                        "resourceTypes": ["script", "image", "xmlhttprequest", "sub_frame"]
-                    }
-                })
-                rid += 1
-                continue
+            url_filter = m.group(1)
 
-        # 2. simple /path/file.js
-        if line.startswith("/"):
-            pattern = line.lstrip("/")
-            rules.append({
-                "id": rid,
-                "priority": 1,
-                "action": {"type": "block"},
-                "condition": {"urlFilter": pattern}
-            })
-            rid += 1
-            continue
+        else:
+            # plain domain style: example.com -> convert to ||example.com^
+            if re.match(r"^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", pattern):
+                url_filter = f"||{pattern}^"
+                # For domain blocks, ensure we're including all relevant resource types
+                resource_types = [
+                    "main_frame",  # Block the main page load
+                    "sub_frame",   # Block iframes
+                    "script",
+                    "image",
+                    "stylesheet",
+                    "font",
+                    "media",
+                    "websocket",
+                    "xmlhttprequest",
+                    "ping",
+                    "other"
+                ]
 
-        # 3. wildcard patterns
-        if "*" in line:
-            rules.append({
-                "id": rid,
-                "priority": 1,
-                "action": {"type": "block"},
-                "condition": {"urlFilter": line.replace("*", "")}
-            })
-            rid += 1
-            continue
-    return rules
+        if not url_filter:
+            continue  # unsupported format
 
+        # ------------------------------------------------------------
+        # Enforce ASCII-only filters
+        # ------------------------------------------------------------
+        if not is_ascii(url_filter):
+            url_filter = strip_unicode(url_filter)
+            if not url_filter:
+                continue  # skip broken filter
+
+        # ------------------------------------------------------------
+        # Build final rule
+        # ------------------------------------------------------------
+        rule = {
+            "id": rule_id,
+            "priority": 1,
+            "action": {"type": "block"},
+            "condition": {
+                "urlFilter": url_filter,
+                "resourceTypes": resource_types
+            }
+        }
+
+        # Add domain restrictions if any
+        if domain_restrictions:
+            rule["condition"].update(domain_restrictions)
+
+        rules.append(rule)
+        rule_id += 1
+
+        if len(rules) >= CHUNK_SIZE:
+            meta_rules.append(rules)
+            rules = []
+            rule_id = 1 
+
+    meta_rules.append(rules)
+    return meta_rules
 
 def build_static_rules():
     start_id = 1
     contents = download_lists()
     all_rules = []
     
-    for name, content in contents.items():
+    for name in names:
         print(f"Processing {name}...")
-        rules = parse_list(content, start_id)
-        all_rules.extend(rules)
-        start_id += len(rules)
-        print(f"  Added {len(rules)} rules from {name}")
+        rules_sets = parse_list(contents[name], start_id)
+        if not all_rules:
+            all_rules = rules_sets
+            start_id = len(all_rules[-1]) + 1
+            continue
+        if all_rules and rules_sets:
+            last_chunk = all_rules[-1]
+            first_chunk = rules_sets[0]
+            
+            # If combined size is under limit, merge them
+            if len(last_chunk) + len(first_chunk) <= 30000:
+                last_chunk.extend(first_chunk)
+                all_rules.extend(rules_sets[1:])
+            else:
+                all_rules.extend(rules_sets)
+        else:
+            all_rules.extend(rules_sets)
+        start_id = len(all_rules[-1]) + 1
     
-    print(f"Total rules: {len(all_rules)}")
     
-    # Ensure we don't exceed Chrome's limit
-    MAX_RULES = 30000  # Chrome's default limit
-    # if len(all_rules) > MAX_RULES:
-    #     print(f"Warning: Truncating to {MAX_RULES} rules (Chrome's limit)")
-    #     all_rules = all_rules[:MAX_RULES]
+    rule_files = save_rules_to_files(all_rules)
+    update_manifest(len(rule_files))
     
-    output_path = "rules.json"
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(all_rules, f, indent=2)
-    print(f"Rules saved to {output_path}")
+    print(f"Total rule chunks: {len(rule_files)}")
+    print(f"Total rules: {sum(len(chunk) for chunk in all_rules)}")
+
 
 if __name__ == "__main__":
     build_static_rules()

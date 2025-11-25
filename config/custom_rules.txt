@@ -1,0 +1,2 @@
+!Format: for plain blocking a website, just use domain (eg, reddit.com). For anything else, use same style as easylist 
+!reddit.com

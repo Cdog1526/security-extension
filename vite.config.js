@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import { resolve } from "path";
 import { copyFileSync } from "fs";
+import { glob } from 'glob';
 
 export default defineConfig({
   build: {
@@ -40,14 +41,18 @@ export default defineConfig({
       }
     },
     {
-      name: 'copy-rules',
-      writeBundle() {
+  name: 'copy-rules',
+    writeBundle() {
+      const ruleFiles = glob.sync('src/rules_*.json');
+      ruleFiles.forEach(file => {
+        const filename = file.split('\\').pop(); // Get just the filename
         copyFileSync(
-          resolve(__dirname, 'src/rules.json'),
-          resolve(__dirname, 'dist/rules.json')
+          resolve(__dirname, file),
+          resolve(__dirname, 'dist/'+filename)
         );
-      }
-    },
+      });
+    }
+  },
     {
       name: 'debug-bundle',
       generateBundle(options, bundle) {
