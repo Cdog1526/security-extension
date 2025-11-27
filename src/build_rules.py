@@ -4,6 +4,30 @@ import requests
 import glob
 import os
 
+# Domains and paths that should never be blocked
+WHITELIST = [
+    # Netflix
+    'netflix.com',  # Allow all of netflix.com
+    'nflxvideo.net',
+    'nflximg.net',
+    'nflxso.net',
+    'nflxext.com',
+    'assets.nflxext.com',  # Netflix assets
+    'secure.netflix.com',  # Login security
+    # Authentication and security
+    'onetrust.com',  # Cookie consent
+    'recaptcha.net',  # Login security
+    'google.com/recaptcha/',  # reCAPTCHA
+    'google.com/recaptcha/api.js',  # reCAPTCHA
+    # Google services
+    'mail.google.com',
+    'docs.google.com',
+    'sheets.google.com',
+    'drive.google.com',
+    'accounts.google.com',
+    'www.google.com/recaptcha/'
+]
+
 THIS_FOLDER = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CUSTOM_RULES_PATH = os.path.join(THIS_FOLDER, 'config/custom_rules.txt')
 
@@ -222,6 +246,11 @@ def parse_list(text: str, starting_id=1):
 
         if not url_filter:
             continue  # unsupported format
+            
+        # Skip rules that would break essential functionality
+        if any(whitelisted in url_filter or url_filter in whitelisted for whitelisted in WHITELIST):
+            print(f"Skipping whitelisted URL: {url_filter}")
+            continue
 
         # ------------------------------------------------------------
         # Enforce ASCII-only filters
