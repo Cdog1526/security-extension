@@ -1,7 +1,9 @@
 import { defineConfig } from "vite";
 import { resolve } from "path";
-import { copyFileSync } from "fs";
+import { copyFileSync, existsSync, mkdirSync } from "fs";
 import { glob } from 'glob';
+import { dirname } from 'path';
+import { fileURLToPath } from 'url';
 
 export default defineConfig({
   build: {
@@ -10,12 +12,16 @@ export default defineConfig({
     rollupOptions: {
       input: {
         popup: resolve(__dirname, "src/popup/popup.html"),
-        'background/service-worker': resolve(__dirname, "src/background/service-worker.ts")
+        'background/service-worker': resolve(__dirname, "src/background/service-worker.ts"),
+        'content/content-script': resolve(__dirname, "src/content/content-script.ts")
       },
       output: {
         entryFileNames: (chunkInfo) => {
           if (chunkInfo.name === 'background/service-worker') {
             return 'background/service-worker.js';
+          }
+          if (chunkInfo.name === 'content/content-script') {
+            return 'content/content-script.js';
           }
           return 'assets/[name].js';
         },
@@ -41,18 +47,40 @@ export default defineConfig({
       }
     },
     {
-  name: 'copy-rules',
-    writeBundle() {
-      const ruleFiles = glob.sync('src/rules_*.json');
-      ruleFiles.forEach(file => {
-        const filename = file.split('\\').pop(); // Get just the filename
-        copyFileSync(
-          resolve(__dirname, file),
+      name: 'copy-rules',
+      writeBundle() {
+        const ruleFiles = glob.sync('src/rules_*.json');
+        ruleFiles.forEach(file => {
+          const filename = file.split('\\').pop(); // Get just the filename
+          copyFileSync(
+            resolve(__dirname, file),
           resolve(__dirname, 'dist/'+filename)
-        );
-      });
-    }
-  },
+          );
+        });
+
+        // Copy CSS rules directory
+        const cssRuleFiles = glob.sync('src/css_rules/**/*', { nodir: true });
+        cssRuleFiles.forEach(file => {
+          // Get the relative path from src/css_rules
+          const relativePath = file.split('\\').pop();
+          const destPath = resolve(__dirname, 'dist/css_rules', relativePath);
+          
+          // Create directory structure if it doesn't exist
+          const destDir = dirname(destPath);
+          if (!existsSync(destDir)) {
+            mkdirSync(destDir, { recursive: true });
+          }
+
+          // Only copy files (not directories)
+          if (file.endsWith('.css') || file.endsWith('.json')) {
+            copyFileSync(
+              resolve(__dirname, file),
+              destPath
+            );
+          }
+        });
+      }
+    },
     {
       name: 'debug-bundle',
       generateBundle(options, bundle) {

@@ -1,13 +1,55 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="UTF-8" />
+<head>
+    <meta charset="UTF-8">
     <title>Ad Blocker</title>
-  </head>
-  <body>
-    <h1>Ad Blocker</h1>
-    <button id="toggle">Toggle (does nothing yet)</button>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="header">
+        <h1>Ad Blocker</h1>
+        <div class="status">
+            <span>Status:</span>
+            <span id="status-indicator" class="status-indicator"></span>
+        </div>
+    </div>
 
-    <script type="module" src="popup.js"></script>
-  </body>
+    <div class="toggle-container">
+        <label class="switch">
+            <input type="checkbox" id="toggle">
+            <span class="slider"></span>
+        </label>
+        <div>
+            <div class="toggle-label">Block Ads</div>
+            <div id="status-text" class="status-text">Enabled</div>
+        </div>
+    </div>
+    <div class="toggle-container">
+        <label class="switch">
+            <input type="checkbox" id="toggle-site">
+            <span class="slider"></span>
+        </label>
+        <div>
+            <div class="toggle-label">Disable css injection on this site</div>
+            <div id="status-text" class="status-text">Enabled</div>
+        </div>
+    </div>
+
+    <div class="log-section">
+    <button id="toggle-logs" class="log-button">Show Block Logs</button>
+    <div id="log-container" class="log-container hidden">
+        <div id="log-content" class="log-content">
+            <!-- Logs will be populated here by JavaScript -->
+        </div>
+        <button id="clear-logs" class="log-button">Clear Logs</button>
+    </div>
+    
+</div>
+
+    <div class="footer">
+        <div class="footer-text">Blocking ads on this website</div>
+    </div>
+
+    <script type="module" src="popup.ts"></script>
+</body>
 </html>

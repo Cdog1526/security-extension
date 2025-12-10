@@ -53,7 +53,7 @@ RESOURCE_MAP = {
 }
 
 # Cosmetic rule keywords (MV3 cannot use these)
-COSMETIC = ["##", "#@#", "#?#", ":-abp-", "##+js", "#$#"]
+COSMETIC = ["#@#", "#?#", ":-abp-", "##+js", "#$#"]
 
 
 # --------------------------------------------------------------------
@@ -86,9 +86,9 @@ def download_lists():
         contents[name] = text
     return contents
 
-def clear_existing_rule_files():
+def clear_existing_files(path: str):
     """Remove all existing rule files matching the pattern rules_*.json"""
-    for file in glob.glob(os.path.join(THIS_FOLDER, "src/rules_*.json")):
+    for file in glob.glob(os.path.join(THIS_FOLDER, path)):
         try:
             os.remove(file)
         except OSError as e:
@@ -96,7 +96,7 @@ def clear_existing_rule_files():
 
 def save_rules_to_files(rules_list: list[list[dict[str, any]]], base_name: str = "rules"):
     """Save rules to multiple files with max 30k rules each"""
-    clear_existing_rule_files()
+    clear_existing_files("src/rules_*.json")
     
     all_files = []
     for i, rule_chunk in enumerate(rules_list, 1):
@@ -110,6 +110,16 @@ def save_rules_to_files(rules_list: list[list[dict[str, any]]], base_name: str =
         print(f"Saved {len(rule_chunk)} rules to {filename}")
     
     return all_files
+
+def save_json_to_file(domain_rules: dict[str, list[str]], file_path: str):
+    with open(os.path.join(THIS_FOLDER, file_path), "a", encoding="utf-8") as f:
+        json.dump(domain_rules, f, indent=2)
+        f.write("\n") 
+
+def save_css_to_file(domain_rules: list[str], file_path: str ):
+    with open(os.path.join(THIS_FOLDER, file_path), "a", encoding="utf-8") as f:
+        json.dump(list(domain_rules), f, indent=2)
+        f.write("\n") 
 
 def update_manifest(num_rule_files: int):
     manifest_path = os.path.join(THIS_FOLDER, "src/manifest.json")
@@ -152,9 +162,10 @@ def load_custom_rules(filename: str = CUSTOM_RULES_PATH) -> str:
 # PARSER
 # --------------------------------------------------------------------
 
-def parse_list(text: str, starting_id=1):
+def parse_list(text: str, domain_rules: dict[str, list[str]], starting_id=1):
     rules = []
     meta_rules = []
+    global_css = []
     rule_id = starting_id
     CHUNK_SIZE = 30000
 
@@ -163,22 +174,30 @@ def parse_list(text: str, starting_id=1):
         line = raw.strip()
 
         # ------------------------------------------------------------
-        # Skip comments, empty lines
+        # Skip comments, empty lines, exception rules (@@ means allowlist)
         # ------------------------------------------------------------
-        if not line or line.startswith("!"):
+        if not line or line.startswith("!") or line.startswith("@@"):
             continue
 
         # ------------------------------------------------------------
-        # Skip exception rules (@@ means allowlist)
-        # ------------------------------------------------------------
-        if line.startswith("@@"):
-            continue
-
-        # ------------------------------------------------------------
-        # Skip cosmetic & HTML filtering (MV3 does not support)
+        # Skip cosmetic & HTML filtering (MV3 does not support). Might change more someday as we add support
         # ------------------------------------------------------------
         if any(c in line for c in COSMETIC):
             continue
+      
+        if "##" in line:
+            parts = line.split('##')
+            if(len(parts) != 2): continue
+            dom = parts[0].strip()
+            sel = parts[1].strip()
+            if (not sel): continue
+            if dom == '':
+                #Global selector
+                global_css.append(sel)
+            else:
+                #Domain selector
+                domain_rules.setdefault(dom, []).append(sel)
+            
 
         # ------------------------------------------------------------
         # Extract resource type modifiers ($script, $image, $xhr)
@@ -286,16 +305,20 @@ def parse_list(text: str, starting_id=1):
             rule_id = 1 
 
     meta_rules.append(rules)
-    return meta_rules
+    return meta_rules, global_css
 
 def build_static_rules():
+    clear_existing_files("src/css_rules/hide_global.css")
+    clear_existing_files("src/css_rules/hide_domain.json")
+    domain_rules = {}
     start_id = 1
     contents = download_lists()
     all_rules = []
     
     for name in names:
         print(f"Processing {name}...")
-        rules_sets = parse_list(contents[name], start_id)
+        rules_sets, global_rules = parse_list(contents[name], domain_rules, start_id)
+        save_css_to_file(global_rules, "src/css_rules/hide_global.css")
         if not all_rules:
             all_rules = rules_sets
             start_id = len(all_rules[-1]) + 1
@@ -314,7 +337,7 @@ def build_static_rules():
             all_rules.extend(rules_sets)
         start_id = len(all_rules[-1]) + 1
     
-    
+    save_json_to_file(domain_rules, "src/css_rules/hide_domain.json")
     rule_files = save_rules_to_files(all_rules)
     update_manifest(len(rule_files))
     
