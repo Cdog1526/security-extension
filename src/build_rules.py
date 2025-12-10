@@ -4,32 +4,9 @@ import requests
 import glob
 import os
 
-# Domains and paths that should never be blocked
-WHITELIST = [
-    # Netflix
-    'netflix.com',  # Allow all of netflix.com
-    'nflxvideo.net',
-    'nflximg.net',
-    'nflxso.net',
-    'nflxext.com',
-    'assets.nflxext.com',  # Netflix assets
-    'secure.netflix.com',  # Login security
-    # Authentication and security
-    'onetrust.com',  # Cookie consent
-    'recaptcha.net',  # Login security
-    'google.com/recaptcha/',  # reCAPTCHA
-    'google.com/recaptcha/api.js',  # reCAPTCHA
-    # Google services
-    'mail.google.com',
-    'docs.google.com',
-    'sheets.google.com',
-    'drive.google.com',
-    'accounts.google.com',
-    'www.google.com/recaptcha/'
-]
-
 THIS_FOLDER = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CUSTOM_RULES_PATH = os.path.join(THIS_FOLDER, 'config/custom_rules.txt')
+WHITELIST_PATH = os.path.join(THIS_FOLDER, 'config/whitelist.txt')
 
 names = {
     "easylist": "https://easylist.to/easylist/easylist.txt",
@@ -79,7 +56,7 @@ def download_lists():
     contents = {}
     for name, url in names.items():
         if name == "custom_rules":
-            contents[name] = load_custom_rules()
+            contents[name] = load_file(CUSTOM_RULES_PATH)
             continue
         print(f"Downloading {name}...")
         text = requests.get(url, timeout=20).text
@@ -148,7 +125,7 @@ def update_manifest(num_rule_files: int):
     except Exception as e:
         print(f"Error updating manifest: {e}")
 
-def load_custom_rules(filename: str = CUSTOM_RULES_PATH) -> str:
+def load_file(filename: str) -> str:
     try:
         with open(filename, "r", encoding="utf-8") as f:
             return f.read()
@@ -158,11 +135,13 @@ def load_custom_rules(filename: str = CUSTOM_RULES_PATH) -> str:
             f.write("# Add your custom blocking rules here, one per line\n")
         return ""
 
+def parse_whitelist(filename: str) -> list[str]:
+    return load_file(filename).splitlines()
 # --------------------------------------------------------------------
 # PARSER
 # --------------------------------------------------------------------
 
-def parse_list(text: str, domain_rules: dict[str, list[str]], starting_id=1):
+def parse_list(text: str, domain_rules: dict[str, list[str]], whitelist, starting_id=1):
     rules = []
     meta_rules = []
     global_css = []
@@ -267,7 +246,7 @@ def parse_list(text: str, domain_rules: dict[str, list[str]], starting_id=1):
             continue  # unsupported format
             
         # Skip rules that would break essential functionality
-        if any(whitelisted in url_filter or url_filter in whitelisted for whitelisted in WHITELIST):
+        if any(whitelisted in url_filter or url_filter in whitelisted for whitelisted in whitelist):
             print(f"Skipping whitelisted URL: {url_filter}")
             continue
 
@@ -314,10 +293,11 @@ def build_static_rules():
     start_id = 1
     contents = download_lists()
     all_rules = []
+    whitelist = parse_whitelist(WHITELIST_PATH)
     
     for name in names:
         print(f"Processing {name}...")
-        rules_sets, global_rules = parse_list(contents[name], domain_rules, start_id)
+        rules_sets, global_rules = parse_list(contents[name], domain_rules, whitelist, start_id)
         save_css_to_file(global_rules, "src/css_rules/hide_global.css")
         if not all_rules:
             all_rules = rules_sets

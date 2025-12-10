@@ -1,0 +1,17 @@
+netflix.com
+nflxvideo.net
+nflximg.net
+nflxso.net
+nflxext.com
+assets.nflxext.com
+secure.netflix.com
+onetrust.com
+recaptcha.net
+google.com/recaptcha/  
+google.com/recaptcha/api.js
+mail.google.com
+docs.google.com
+sheets.google.com
+drive.google.com
+accounts.google.com
+www.google.com/recaptcha/
