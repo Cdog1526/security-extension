@@ -4,3 +4,4 @@ dist/
 .DS_Store
 src/rules_*.json
 src/css_rules/
+personalNotes.txt

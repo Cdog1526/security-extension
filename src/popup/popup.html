@@ -30,8 +30,37 @@
             <span class="slider"></span>
         </label>
         <div>
-            <div class="toggle-label">Disable css injection on this site</div>
+            <div class="toggle-label">Turn off some adblocking (this site)</div>
             <div id="status-text" class="status-text">Enabled</div>
+        </div>
+    </div>
+    <div class="toggle-container">
+        <label class="switch">
+            <input type="checkbox" id="toggle-js">
+            <span class="slider"></span>
+        </label>
+        <div>
+            <div class="toggle-label">Disable Javascripts</div>
+            <div id="status-text" class="status-text">Enabled</div>
+        </div>
+    </div>
+
+    <!-- Security Analysis Section -->
+    <div class="security-section">
+        <h3>Security Analysis</h3>
+        <div class="security-info">
+            <div class="security-item">
+                <span class="security-label">Safety Score:</span>
+                <span id="security-score" class="security-score">Loading...</span>
+            </div>
+            <div class="security-item">
+                <span class="security-label">Risk Level:</span>
+                <span id="security-status" class="security-status">Analyzing...</span>
+            </div>
+            <div class="security-item">
+                <span class="security-label">Issues Found:</span>
+                <span id="security-tags" class="security-tags">Loading...</span>
+            </div>
         </div>
     </div>
 
@@ -47,6 +76,25 @@
 
     <div class="footer">
         <div class="footer-text">Blocking ads on this website</div>
+    </div>
+
+    <!-- Security Alert Panel -->
+    <div id="alert-panel" class="alert-panel hidden">
+        <div class="alert-header">
+            <div class="alert-icon">⚠️</div>
+            <h3>Security Alert</h3>
+        </div>
+        <div class="alert-content">
+            <div class="alert-item">
+                <span class="alert-label">Safety Score:</span>
+                <span id="alert-score" class="alert-score"></span>
+            </div>
+            <div class="alert-item">
+                <span class="alert-label">Dangerous Tags:</span>
+                <span id="alert-tags" class="alert-tags"></span>
+            </div>
+        </div>
+        <button id="dismiss-alert" class="dismiss-button">Dismiss</button>
     </div>
 
     <script type="module" src="popup.ts"></script>

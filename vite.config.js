@@ -13,7 +13,8 @@ export default defineConfig({
       input: {
         popup: resolve(__dirname, "src/popup/popup.html"),
         'background/service-worker': resolve(__dirname, "src/background/service-worker.ts"),
-        'content/content-script': resolve(__dirname, "src/content/content-script.ts")
+        'content/content-script': resolve(__dirname, "src/content/content-script.ts"),
+        'content/website-score': resolve(__dirname, "src/content/website-score.ts")
       },
       output: {
         entryFileNames: (chunkInfo) => {
@@ -22,6 +23,9 @@ export default defineConfig({
           }
           if (chunkInfo.name === 'content/content-script') {
             return 'content/content-script.js';
+          }
+          if (chunkInfo.name === 'content/website-score') {
+            return 'content/website-score.js';
           }
           return 'assets/[name].js';
         },

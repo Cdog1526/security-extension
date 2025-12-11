@@ -13,6 +13,17 @@ async function shouldRun(): Promise<boolean> {
   });
 }
 
+async function shouldBlockJavaScript() {
+
+    chrome.storage.local.get(["js_enabled"], (res: any) => {
+      const js_enabled = res.js_enabled !== false;
+      if(js_enabled){
+		blockJavaScript();
+	  }
+    });
+
+}
+
 async function getRuntimeURLResource(path: string): Promise<string> {
   const url = chrome.runtime.getURL(path);
   const res = await fetch(url);
@@ -44,13 +55,30 @@ function selectorsToCss(selectors: string[]): string {
   return `${safe.join(", ")} { display: none !important; visibility: hidden !important; }`;
 }
 
+function blockJavaScript() {
+    // Create a meta tag with a restrictive CSP
+    const meta = document.createElement('meta');
+    meta.httpEquiv = 'Content-Security-Policy';
+    meta.content = "script-src 'none'; object-src 'none';";
+    
+    // Insert at the very top of the head
+    const head = document.head || document.documentElement;
+    head.insertBefore(meta, head.firstChild);
+    
+    console.log('JavaScript blocking enabled via CSP');
+}
+
 async function main() {
     if (!(await shouldRun())) return;
+	shouldBlockJavaScript();
     try {
+        // Block JavaScript execution first
+        
+        
         // 1) Inject global CSS (applies to all pages)
         const globalCss = await getRuntimeURLResource("css_rules/hide_global.css");
         if (globalCss && globalCss.trim()) {
-        injectCss(globalCss, "adblock-hide-global");
+            injectCss(globalCss, "adblock-hide-global");
         }
 
         const jsonText = await getRuntimeURLResource("css_rules/hide_domain.json");

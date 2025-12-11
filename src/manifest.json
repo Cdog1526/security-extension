@@ -8,7 +8,9 @@
     "declarativeNetRequestFeedback",
     "declarativeNetRequestWithHostAccess",
     "storage",
-    "tabs"
+    "tabs",
+    "webRequest",
+    "notifications"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -50,7 +52,8 @@
         "<all_urls>"
       ],
       "js": [
-        "content/content-script.js"
+        "content/content-script.js",
+        "content/website-score.js"
       ],
       "run_at": "document_start"
     }
