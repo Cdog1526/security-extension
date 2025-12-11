@@ -1,15 +1,46 @@
 # AdBlock Extension
 
-A highly efficient and customizable ad-blocking browser extension that blocks ads, trackers, and other unwanted content using multiple filter lists and custom rules.
+A comprehensive browser security extension that blocks ads, trackers, and malicious content while providing advanced website safety analysis and browsing protection features.
 
 ## Features
 
-- Blocks ads, trackers, and other unwanted content
+### Core Ad Blocking
+- Blocks ads, trackers, and other unwanted content using multiple filter lists
 - Custom rule support for advanced filtering
 - Whitelist functionality for trusted sites
 - Automatic rule updates
 - Lightweight and fast performance
 - Privacy-focused (no data collection)
+
+### Website Security Analysis
+- **Real-time Safety Scoring**: Analyzes websites on multiple security factors
+  - Content Security Policy (CSP) evaluation
+  - Script source analysis for unsafe patterns
+  - Tracker detection in connections
+  - Anti-clickjacking protection checks
+- **Google Safe Browsing Integration**: Connects to proxy server for domain reputation checking
+  - Malware detection
+  - Social engineering protection
+  - Unwanted software identification
+  - Threat type classification
+- **Risk Assessment**: Provides comprehensive safety scores with detailed threat tags
+- **Security Alerts**: Warns users about high-risk websites with visual indicators
+
+### Advanced Browsing Controls
+- **JavaScript Toggle**: Per-site JavaScript blocking capability
+  - CSP-based JavaScript enforcement
+  - Immediate protection against malicious scripts
+  - Toggle control for individual websites
+- **Block Logging**: Detailed tracking of blocked content
+  - View blocked requests by domain, initiator, and type
+  - Clear logs functionality
+  - Real-time monitoring
+
+### User Interface
+- Modern popup interface with security indicators
+- Color-coded risk levels (Low/Medium/High)
+- Detailed security analysis display
+- Quick toggles for all major features
 
 ## You need
 
